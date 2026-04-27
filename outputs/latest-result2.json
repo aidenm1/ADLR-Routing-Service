@@ -1,0 +1,539 @@
+{
+  "routes": [
+    {
+      "vehicle_id": "V-1",
+      "stops": [
+        {
+          "type": "property",
+          "property_id": "46a872ae-cb9d-4eaa-bb1a-3eb9400ea3b2",
+          "address": "330 East Mariposa Street",
+          "lat": 34.1909964409646,
+          "lng": -118.142357476068,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:22:36Z"
+        },
+        {
+          "type": "property",
+          "property_id": "46388a49-1e71-431a-962d-469abd5c4968",
+          "address": "488 Colman Street",
+          "lat": 34.1851463931812,
+          "lng": -118.14021523471,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:33:38Z"
+        },
+        {
+          "type": "property",
+          "property_id": "14f96251-9695-4be6-b9db-438250275b4f",
+          "address": "1265 East Mendocino Street",
+          "lat": 34.1861235872075,
+          "lng": -118.124805800309,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:45:45Z"
+        },
+        {
+          "type": "property",
+          "property_id": "8cda920c-4f63-48ef-b6be-fcdae841b9a8",
+          "address": "1171 East Altadena Drive",
+          "lat": 34.190674175708,
+          "lng": -118.126605923306,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:56:33Z"
+        },
+        {
+          "type": "property",
+          "property_id": "5597fda0-33f9-474d-bc3a-f967ee6a6405",
+          "address": "2536 Boulder Road",
+          "lat": 34.1887533025189,
+          "lng": -118.120955328952,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:07:24Z"
+        },
+        {
+          "type": "property",
+          "property_id": "ab62deef-b3af-40df-8e23-7f1ba9c606d7",
+          "address": "2508 Page Drive",
+          "lat": 34.1885321842264,
+          "lng": -118.11974663487,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:17:34Z"
+        },
+        {
+          "type": "property",
+          "property_id": "d9aeef35-5743-4a5a-83be-7c6566a6447c",
+          "address": "1662 Braeburn Road",
+          "lat": 34.1872796175746,
+          "lng": -118.11636648001,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:28:05Z"
+        },
+        {
+          "type": "property",
+          "property_id": "fe79533b-e93c-4ace-b431-216bd8881120",
+          "address": "2376 Ganesha Avenue",
+          "lat": 34.1867441515335,
+          "lng": -118.125565227059,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:39:21Z"
+        },
+        {
+          "type": "property",
+          "property_id": "81807c6c-e46c-4335-8a09-c5e982cc48fe",
+          "address": "2557 Highland Avenue",
+          "lat": 34.1898234802571,
+          "lng": -118.124818284494,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:49:53Z"
+        },
+        {
+          "type": "property",
+          "property_id": "3326d038-7961-465a-a4bf-36423f1eeaf2",
+          "address": "2862 Lake Avenue",
+          "lat": 34.1950376647958,
+          "lng": -118.130860119404,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:01:05Z"
+        },
+        {
+          "type": "property",
+          "property_id": "526b723d-a676-4fa8-9c35-eb07953cb0ba",
+          "address": "4005 Alzada Road",
+          "lat": 34.2100291175904,
+          "lng": -118.144240530799,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:14:11Z"
+        },
+        {
+          "type": "property",
+          "property_id": "4b40a2e3-8a85-4a27-b438-f860e2ebada1",
+          "address": "329 West Altadena Drive",
+          "lat": 34.1968544628333,
+          "lng": -118.153689886361,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:26:45Z"
+        },
+        {
+          "type": "property",
+          "property_id": "218464b1-7486-41df-b25e-7b1101ed2040",
+          "address": "3100 North Olive Avenue",
+          "lat": 34.1981969075617,
+          "lng": -118.15288519296,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:37:00Z"
+        },
+        {
+          "type": "property",
+          "property_id": "bd5b3f2d-5ee6-4b90-9485-f48b631a8d6b",
+          "address": "82 West Manor Street",
+          "lat": 34.1931998802053,
+          "lng": -118.150040004322,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:47:55Z"
+        }
+      ],
+      "totals": {
+        "travel_min": 34,
+        "service_min": 140,
+        "refill_min": 0,
+        "total_min": 174
+      },
+      "maps_url": "https://www.google.com/maps/dir/?api=1&origin=34.18724207952961,-118.1500512948987&destination=34.18724207952961,-118.1500512948987&waypoints=34.1909964409646,-118.142357476068|34.1851463931812,-118.14021523471|34.1861235872075,-118.124805800309|34.190674175708,-118.126605923306|34.1887533025189,-118.120955328952|34.1885321842264,-118.11974663487|34.1872796175746,-118.11636648001|34.1867441515335,-118.125565227059|34.1898234802571,-118.124818284494|34.1950376647958,-118.130860119404|34.2100291175904,-118.144240530799|34.1968544628333,-118.153689886361|34.1981969075617,-118.15288519296|34.1931998802053,-118.150040004322&travelmode=driving"
+    },
+    {
+      "vehicle_id": "V-2",
+      "stops": [
+        {
+          "type": "property",
+          "property_id": "0899e387-3646-428c-8214-22a51a7094b5",
+          "address": "1484 Braeburn Road",
+          "lat": 34.1872260530943,
+          "lng": -118.120050937836,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:25:31Z"
+        },
+        {
+          "type": "property",
+          "property_id": "3107b26b-7932-4203-9c01-13bb424a8ed4",
+          "address": "1472 Carroll Drive",
+          "lat": 34.1865842887896,
+          "lng": -118.120290233383,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:35:37Z"
+        },
+        {
+          "type": "property",
+          "property_id": "a0bbb845-0444-4759-a00b-8d16a7b0d040",
+          "address": "1030 East Mendocino Street",
+          "lat": 34.1855821107885,
+          "lng": -118.12935437644,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:46:53Z"
+        },
+        {
+          "type": "property",
+          "property_id": "d99c6da6-dd77-4322-9e20-931ee796b323",
+          "address": "1135 East Mariposa Street",
+          "lat": 34.1888673905107,
+          "lng": -118.127334589085,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:57:30Z"
+        },
+        {
+          "type": "property",
+          "property_id": "84792190-7462-4373-9c72-aaf5ac06fa4f",
+          "address": "1125 East Mariposa Street",
+          "lat": 34.1888786958059,
+          "lng": -118.127550371417,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:07:32Z"
+        },
+        {
+          "type": "property",
+          "property_id": "9886908f-810c-40bb-b947-87404ca6afcc",
+          "address": "916 Concha Street",
+          "lat": 34.1989020999661,
+          "lng": -118.130493458433,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:19:15Z"
+        },
+        {
+          "type": "property",
+          "property_id": "fb3c2e67-b679-4fcf-a6fb-6b9418aedd34",
+          "address": "3235 Mount Curve Avenue East",
+          "lat": 34.199557427466,
+          "lng": -118.126987839787,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:29:45Z"
+        },
+        {
+          "type": "property",
+          "property_id": "aa02ee01-c05b-4b71-854a-1e3c16c24db8",
+          "address": "465 Wapello Street",
+          "lat": 34.1995748976098,
+          "lng": -118.134781739827,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:40:49Z"
+        },
+        {
+          "type": "property",
+          "property_id": "efd03b26-0563-4674-a65d-9434a0bf46e1",
+          "address": "287 East Poppyfields Drive",
+          "lat": 34.1967610739194,
+          "lng": -118.139943999538,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:51:41Z"
+        },
+        {
+          "type": "property",
+          "property_id": "cae36599-75f2-4c62-8515-ddd7b572aece",
+          "address": "3234 North Raymond Avenue",
+          "lat": 34.1987552177494,
+          "lng": -118.139798447947,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:02:01Z"
+        },
+        {
+          "type": "property",
+          "property_id": "fc647325-6451-43b5-9455-fed2ff9d762a",
+          "address": "66 East Las Flores Drive",
+          "lat": 34.1985835236509,
+          "lng": -118.143884894015,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:12:34Z"
+        },
+        {
+          "type": "property",
+          "property_id": "b564737e-3d11-4581-a8a6-2529c54dbd4e",
+          "address": "3564 Glenrose Avenue",
+          "lat": 34.204380450857,
+          "lng": -118.14552367606,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:23:34Z"
+        },
+        {
+          "type": "property",
+          "property_id": "a6478381-0f57-414c-ad7c-799ddb496afa",
+          "address": "3195 Lincoln Avenue",
+          "lat": 34.2006904609686,
+          "lng": -118.159135993254,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:35:33Z"
+        },
+        {
+          "type": "property",
+          "property_id": "4a64ea1f-4dca-4363-8ff6-e2e37358fed7",
+          "address": "2896 North Olive Avenue",
+          "lat": 34.1949747566812,
+          "lng": -118.154478462275,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:46:41Z"
+        },
+        {
+          "type": "property",
+          "property_id": "34b55598-af70-404a-a728-8776dbb1d403",
+          "address": "214 West Altadena Drive",
+          "lat": 34.1956427589192,
+          "lng": -118.151738455758,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:57:05Z"
+        }
+      ],
+      "totals": {
+        "travel_min": 36,
+        "service_min": 150,
+        "refill_min": 0,
+        "total_min": 186
+      },
+      "maps_url": "https://www.google.com/maps/dir/?api=1&origin=34.18724207952961,-118.1500512948987&destination=34.18724207952961,-118.1500512948987&waypoints=34.1872260530943,-118.120050937836|34.1865842887896,-118.120290233383|34.1855821107885,-118.12935437644|34.1888673905107,-118.127334589085|34.1888786958059,-118.127550371417|34.1989020999661,-118.130493458433|34.199557427466,-118.126987839787|34.1995748976098,-118.134781739827|34.1967610739194,-118.139943999538|34.1987552177494,-118.139798447947|34.1985835236509,-118.143884894015|34.204380450857,-118.14552367606|34.2006904609686,-118.159135993254|34.1949747566812,-118.154478462275|34.1956427589192,-118.151738455758&travelmode=driving"
+    },
+    {
+      "vehicle_id": "V-3",
+      "stops": [
+        {
+          "type": "hydrant_refill",
+          "hydrant_id": "3ee62876-36f2-407b-99d2-248cbcbe9eb2",
+          "address": "2397 North Fair Oaks Avenue",
+          "lat": 34.1868824128536,
+          "lng": -118.151145458237,
+          "duration_min": 2,
+          "arrival_time": "2026-04-27T00:21:32Z"
+        },
+        {
+          "type": "property",
+          "property_id": "64ffd068-b566-4b0a-8923-6ec407a3d07e",
+          "address": "3697 North Fair Oaks Avenue",
+          "lat": 34.2087816323426,
+          "lng": -118.141095320109,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:27:27Z"
+        },
+        {
+          "type": "property",
+          "property_id": "a8319b3b-e73d-457a-aaa5-25a1d6448586",
+          "address": "3675 El Sereno Avenue",
+          "lat": 34.2055860280937,
+          "lng": -118.144566624085,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:38:10Z"
+        },
+        {
+          "type": "hydrant_refill",
+          "hydrant_id": "3007c897-95fc-4df7-9f75-6e50a09e2c20",
+          "address": "3670 Glenrose Avenue",
+          "lat": 34.2048320962976,
+          "lng": -118.144164899314,
+          "duration_min": 2,
+          "arrival_time": "2026-04-27T00:48:18Z"
+        },
+        {
+          "type": "property",
+          "property_id": "342949d4-c980-4a84-b0df-5b07eefb87db",
+          "address": "279 Laurel Drive",
+          "lat": 34.201952093846,
+          "lng": -118.150315980625,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T00:51:16Z"
+        },
+        {
+          "type": "property",
+          "property_id": "8d5315a6-34d4-4f44-8f4f-642e17c4139d",
+          "address": "3345 Villa Grove Drive",
+          "lat": 34.2034987294405,
+          "lng": -118.12902488304,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:04:13Z"
+        },
+        {
+          "type": "hydrant_refill",
+          "hydrant_id": "7e867cc8-8644-4756-b2f6-6eaf905e457f",
+          "address": "3430 Ellington Villa Drive",
+          "lat": 34.2037442915983,
+          "lng": -118.126762321213,
+          "duration_min": 2,
+          "arrival_time": "2026-04-27T01:14:32Z"
+        },
+        {
+          "type": "property",
+          "property_id": "7a9ceb36-438e-46e0-998c-9d4dbe6b07d0",
+          "address": "3108 Santa Anita Avenue",
+          "lat": 34.1976520737444,
+          "lng": -118.134202660286,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:17:59Z"
+        },
+        {
+          "type": "property",
+          "property_id": "04e0db64-b6d2-433c-85e2-54f175f2dd74",
+          "address": "932 Concha Street",
+          "lat": 34.1988902354539,
+          "lng": -118.130008464717,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:28:36Z"
+        },
+        {
+          "type": "hydrant_refill",
+          "hydrant_id": "e83e0121-4104-43af-8b4c-2bce6441bc83",
+          "address": "3094 Lake Avenue",
+          "lat": 34.1989752331116,
+          "lng": -118.130744775143,
+          "duration_min": 2,
+          "arrival_time": "2026-04-27T01:38:42Z"
+        },
+        {
+          "type": "property",
+          "property_id": "cad8d8fc-3113-4964-869a-dc6dd74f2027",
+          "address": "3080 Rubio Canyon Road",
+          "lat": 34.1969491034494,
+          "lng": -118.124901422357,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:41:34Z"
+        },
+        {
+          "type": "property",
+          "property_id": "ee48178a-cf8c-4e2b-a9a5-2b68bb53739e",
+          "address": "2524 Page Drive",
+          "lat": 34.1887320159481,
+          "lng": -118.119753023679,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T01:53:07Z"
+        },
+        {
+          "type": "hydrant_refill",
+          "hydrant_id": "07179c7f-e573-4011-b308-6c83f6797284",
+          "address": "1550 Homewood Drive",
+          "lat": 34.1890530915472,
+          "lng": -118.118806101884,
+          "duration_min": 2,
+          "arrival_time": "2026-04-27T02:03:15Z"
+        },
+        {
+          "type": "property",
+          "property_id": "3c7cb089-7767-4498-ab0e-d12888d48fae",
+          "address": "2521 Devonshire Lane",
+          "lat": 34.1879406164164,
+          "lng": -118.134700386487,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:07:27Z"
+        },
+        {
+          "type": "property",
+          "property_id": "5b3f667a-4f73-4135-976a-a23461af0cab",
+          "address": "2775 Santa Anita Avenue",
+          "lat": 34.1927909056217,
+          "lng": -118.138135033476,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:18:24Z"
+        },
+        {
+          "type": "hydrant_refill",
+          "hydrant_id": "66e9c221-291b-4e21-8c00-4e8af70ddde5",
+          "address": "2846 Santa Anita Avenue",
+          "lat": 34.193630821735,
+          "lng": -118.13693578019,
+          "duration_min": 2,
+          "arrival_time": "2026-04-27T02:28:37Z"
+        },
+        {
+          "type": "property",
+          "property_id": "1e8e04b0-81f7-4e0b-a525-8519da78aff8",
+          "address": "407 East Mendocino Street",
+          "lat": 34.1888844525347,
+          "lng": -118.140773593254,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:31:34Z"
+        },
+        {
+          "type": "property",
+          "property_id": "2b8b3808-78c2-4918-bf25-8c863d3a77e1",
+          "address": "423 East Mendocino Street",
+          "lat": 34.189373094439,
+          "lng": -118.140469369464,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:41:39Z"
+        },
+        {
+          "type": "hydrant_refill",
+          "hydrant_id": "dfbddfbb-ad46-4d9e-afd8-914c61a10401",
+          "address": "2521 Santa Anita Avenue",
+          "lat": 34.1885567369168,
+          "lng": -118.139895246059,
+          "duration_min": 2,
+          "arrival_time": "2026-04-27T02:51:49Z"
+        },
+        {
+          "type": "property",
+          "property_id": "eecbcdfb-c9d7-4cc6-9c4f-2dc584702f7f",
+          "address": "366 East Mendocino Street",
+          "lat": 34.1886101437337,
+          "lng": -118.142081991469,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T02:54:07Z"
+        },
+        {
+          "type": "property",
+          "property_id": "9e80ef63-e7d6-43d0-8e12-8c44fd250246",
+          "address": "N/A",
+          "lat": 34.1855932682844,
+          "lng": -118.149198438789,
+          "service_time_min": 10,
+          "water_demand_gallons": 250,
+          "arrival_time": "2026-04-27T03:05:13Z"
+        }
+      ],
+      "totals": {
+        "travel_min": 39,
+        "service_min": 140,
+        "refill_min": 14,
+        "total_min": 193
+      },
+      "maps_url": "https://www.google.com/maps/dir/?api=1&origin=34.18724207952961,-118.1500512948987&destination=34.18724207952961,-118.1500512948987&waypoints=34.1868824128536,-118.151145458237|34.2087816323426,-118.141095320109|34.2055860280937,-118.144566624085|34.2048320962976,-118.144164899314|34.201952093846,-118.150315980625|34.2034987294405,-118.12902488304|34.2037442915983,-118.126762321213|34.1976520737444,-118.134202660286|34.1988902354539,-118.130008464717|34.1989752331116,-118.130744775143|34.1969491034494,-118.124901422357|34.1887320159481,-118.119753023679|34.1890530915472,-118.118806101884|34.1879406164164,-118.134700386487|34.1927909056217,-118.138135033476|34.193630821735,-118.13693578019|34.1888844525347,-118.140773593254|34.189373094439,-118.140469369464|34.1885567369168,-118.139895246059|34.1886101437337,-118.142081991469|34.1855932682844,-118.149198438789&travelmode=driving"
+    }
+  ],
+  "dropped": [
+    {
+      "property_id": "f1715554-3ef4-4156-8032-f02e91788d25",
+      "reason": "Could not fit in time budget"
+    }
+  ]
+}
