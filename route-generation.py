@@ -63,7 +63,7 @@ ORS_MATRIX_URL = "https://api.openrouteservice.org/v2/matrix/driving-car"
 ORS_MAX_LOCATIONS = 3500  # free tier limit
 
 # Average driving speed used to estimate travel times from haversine distances
-AVG_SPEED_KMH = 40
+AVG_SPEED_KMH = 25
 
 # OR-Tools solver time limit per optimization call
 SOLVER_TIME_LIMIT_SECONDS = 120
@@ -558,6 +558,7 @@ def _ors_matrix_single(nodes):
             json={
                 "locations": coords,
                 "metrics": ["duration"],
+                "units": "m",
             },
             headers={
                 "Authorization": ors_api_key,
@@ -589,7 +590,7 @@ def _ors_matrix_single(nodes):
         print(f"Warning: ORS request failed ({e}), falling back to haversine.")
         return build_time_matrix_haversine(nodes)
 
-ORS_CHUNK_SIZE = 50  # keeps any chunk under 3500 cells (50*70=3500 worst case)
+ORS_CHUNK_SIZE = 58  # keeps any chunk under 3500 cells (58*58 = 3364 worst case)
 
 def build_time_matrix_ors(nodes):
     n = len(nodes)
@@ -723,13 +724,21 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
     # ------------------------------------------------------------------
     # Travel time callback (travel + service time at the from-node)
     # ------------------------------------------------------------------
+    
+    def travel_callback(from_index, to_index):
+        from_node = manager.IndexToNode(from_index)
+        to_node = manager.IndexToNode(to_index)
+        return time_matrix[from_node][to_node]
+
+    travel_callback_index = routing.RegisterTransitCallback(travel_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(travel_callback_index)
+    
     def time_callback(from_index, to_index):
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
         return time_matrix[from_node][to_node] + int(nodes[from_node]["service_time_minutes"])
 
     transit_callback_index = routing.RegisterTransitCallback(time_callback)
-    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
     # ------------------------------------------------------------------
     # Time dimension — enforces per-vehicle time budget
@@ -779,12 +788,12 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
     # ------------------------------------------------------------------
     search_params = pywrapcp.DefaultRoutingSearchParameters()
     search_params.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES
+        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
     )
     search_params.local_search_metaheuristic = (
         routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     )
-    search_params.guided_local_search_lambda_coefficient = 0.1
+    search_params.guided_local_search_lambda_coefficient = 1.0
     search_params.time_limit.seconds = SOLVER_TIME_LIMIT_SECONDS
 
     # ------------------------------------------------------------------
