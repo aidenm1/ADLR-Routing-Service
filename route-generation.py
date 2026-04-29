@@ -300,17 +300,23 @@ def nearest_hydrant(lat, lng, hydrants):
 # Google Maps URL
 # ---------------------------------------------------------------------------
 
-def generate_maps_url(stops, hub):
-    if not stops:
+def generate_maps_url(stops, hub=None):
+    if not stops and not hub:
         return None
-    waypoints = "|".join(f"{s['lat']},{s['lng']}" for s in stops)
-    return (
-        f"https://www.google.com/maps/dir/?api=1"
-        f"&origin={hub['lat']},{hub['lng']}"
-        f"&destination={hub['lat']},{hub['lng']}"
-        f"&waypoints={waypoints}"
-        f"&travelmode=driving"
-    )
+
+    def fmt(p):
+        return f"{p['lat']},{p['lng']}" if isinstance(p, dict) else f"{p[0]},{p[1]}"
+
+    base = "https://www.google.com/maps/dir/"
+
+    if hub:
+        hub_str = fmt(hub)
+        path = "/".join([hub_str] + [fmt(s) for s in stops] + [hub_str])
+    else:
+        coords = [fmt(s) for s in stops]
+        path = "/".join(coords)
+
+    return base + path
 
 
 # ---------------------------------------------------------------------------
