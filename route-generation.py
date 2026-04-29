@@ -33,6 +33,7 @@ import argparse
 import json
 import math
 import os
+import time
 from datetime import datetime, timedelta, timezone
 
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
@@ -70,6 +71,10 @@ SOLVER_TIME_LIMIT_SECONDS = 120
 
 # Num workers to build time matrix
 MAX_WORKERS = 8
+
+# ORS retry policy for matrix chunks
+ORS_MATRIX_MAX_RETRIES = 3
+ORS_MATRIX_RETRY_BASE_DELAY_SECONDS = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -351,31 +356,64 @@ def _ors_chunk(coords, src_idx, tgt_idx, all_nodes):
     chunk_src = [remap[k] for k in src_idx]
     chunk_tgt = [remap[k] for k in tgt_idx]
 
-    try:
-        resp = requests.post(
-            ORS_MATRIX_URL,
-            json={
-                "locations": chunk_coords,
-                "sources": chunk_src,
-                "destinations": chunk_tgt,
-                "metrics": ["duration"],
-            },
-            headers={"Authorization": ors_api_key, "Content-Type": "application/json"},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        raw = resp.json()["durations"]
-        result = {}
-        for i_local, row in enumerate(raw):
-            for j_local, cell in enumerate(row):
-                i_global = src_idx[i_local]
-                j_global = tgt_idx[j_local]
-                if cell is not None:
-                    result[(i_global, j_global)] = (
-                        0 if i_global == j_global else max(1, int(round(cell)))
-                    )
-                else:
-                    # ORS returned null — fall back to haversine for this pair
+    last_exc = None
+
+    for attempt in range(1, ORS_MATRIX_MAX_RETRIES + 1):
+        try:
+            resp = requests.post(
+                ORS_MATRIX_URL,
+                json={
+                    "locations": chunk_coords,
+                    "sources": chunk_src,
+                    "destinations": chunk_tgt,
+                    "metrics": ["duration"],
+                },
+                headers={"Authorization": ors_api_key, "Content-Type": "application/json"},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["durations"]
+            result = {}
+            for i_local, row in enumerate(raw):
+                for j_local, cell in enumerate(row):
+                    i_global = src_idx[i_local]
+                    j_global = tgt_idx[j_local]
+                    if cell is not None:
+                        result[(i_global, j_global)] = (
+                            0 if i_global == j_global else max(1, int(round(cell)))
+                        )
+                    else:
+                        # ORS returned null — fall back to haversine for this pair
+                        t = travel_time_minutes(
+                            all_nodes[i_global]["lat"], all_nodes[i_global]["lng"],
+                            all_nodes[j_global]["lat"], all_nodes[j_global]["lng"],
+                        )
+                        result[(i_global, j_global)] = (
+                            0 if i_global == j_global else max(1, int(round(t * 60)))
+                        )
+            return result
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+            if attempt < ORS_MATRIX_MAX_RETRIES:
+                delay = ORS_MATRIX_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
+                print(
+                    f"Warning: ORS chunk attempt {attempt}/{ORS_MATRIX_MAX_RETRIES} failed "
+                    f"({exc}); retrying in {delay:.1f}s."
+                )
+                time.sleep(delay)
+                continue
+
+            try:
+                print(f"ORS chunk error response: {exc.response.json()}")
+            except Exception:
+                pass
+            print(
+                f"Warning: ORS chunk failed after {ORS_MATRIX_MAX_RETRIES} attempts "
+                f"({exc}), using haversine for this chunk."
+            )
+            result = {}
+            for i_global in src_idx:
+                for j_global in tgt_idx:
                     t = travel_time_minutes(
                         all_nodes[i_global]["lat"], all_nodes[i_global]["lng"],
                         all_nodes[j_global]["lat"], all_nodes[j_global]["lng"],
@@ -383,24 +421,9 @@ def _ors_chunk(coords, src_idx, tgt_idx, all_nodes):
                     result[(i_global, j_global)] = (
                         0 if i_global == j_global else max(1, int(round(t * 60)))
                     )
-        return result
-    except requests.exceptions.RequestException as exc:
-        try:
-            print(f"ORS chunk error response: {exc.response.json()}")
-        except Exception:
-            pass
-        print(f"Warning: ORS chunk failed ({exc}), using haversine for this chunk.")
-        result = {}
-        for i_global in src_idx:
-            for j_global in tgt_idx:
-                t = travel_time_minutes(
-                    all_nodes[i_global]["lat"], all_nodes[i_global]["lng"],
-                    all_nodes[j_global]["lat"], all_nodes[j_global]["lng"],
-                )
-                result[(i_global, j_global)] = (
-                    0 if i_global == j_global else max(1, int(round(t * 60)))
-                )
-        return result
+            return result
+
+    raise RuntimeError(f"Unexpected ORS matrix failure: {last_exc}")
 
 
 def build_time_matrix_ors(nodes):
