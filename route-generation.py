@@ -26,7 +26,8 @@ Hydrant stops:
     Hydrants have unlimited water (city supply). Truck teams (C/D) start with an empty
     tank and visit the nearest hydrant whenever their water would run out.
     Hydrant insertion happens as post-processing after OR-Tools optimises the
-    property visit order — hydrants do not appear as nodes in the VRP to minimize size of travel time matrix.
+    property visit order — hydrants do not appear as nodes in the VRP to minimize
+    size of the travel time matrix.
 """
 
 import argparse
@@ -34,11 +35,17 @@ import json
 import math
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
-from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+
+from travel_time_cache_utils import (
+    get_cached_matrix_if_valid,
+    save_cached_matrix,
+    is_cache_recent,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -61,18 +68,10 @@ HYDRANT_REFILL_DURATION_MINUTES = {
 }
 
 ORS_MATRIX_URL = "https://api.openrouteservice.org/v2/matrix/driving-car"
-ORS_CHUNK_SIZE = 58   # keeps any chunk under 3 500 cells (58×58 = 3 364)
-
-# Fallback average driving speed when ORS is unavailable
-AVG_SPEED_KMH = 25
-
-# OR-Tools solver time limit per optimisation call
+ORS_CHUNK_SIZE = 58          # keeps any chunk under 3 500 cells (58×58 = 3 364)
+AVG_SPEED_KMH = 25           # fallback when ORS is unavailable
 SOLVER_TIME_LIMIT_SECONDS = 120
-
-# Num workers to build time matrix
 MAX_WORKERS = 8
-
-# ORS retry policy for matrix chunks
 ORS_MATRIX_MAX_RETRIES = 3
 ORS_MATRIX_RETRY_BASE_DELAY_SECONDS = 1.0
 
@@ -93,7 +92,6 @@ def _load_env_file():
     env_path = os.path.join(os.getcwd(), ".env")
     if not os.path.exists(env_path):
         return
-
     with open(env_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -161,7 +159,6 @@ def fetch_all_properties(client):
         .execute()
         .data or []
     )
-
     properties = []
     for row in rows:
         num_trees = row.get("num_trees") or 0
@@ -263,7 +260,17 @@ def parse_args():
         help="TEAM_TYPE:TIME_MIN, e.g. --team A:90 --team C:600",
     )
     parser.add_argument("--output", type=str, default=None)
-
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable travel time matrix cache (cache is used by default)",
+    )
+    parser.add_argument(
+        "--cache-file",
+        type=str,
+        default="travel_time_cache.json",
+        help="Path to travel time matrix cache (default: travel_time_cache.json)",
+    )
     args = parser.parse_args()
     if args.num_teams <= 0:
         parser.error("--num-teams must be > 0.")
@@ -313,14 +320,11 @@ def generate_maps_url(stops, hub=None):
         return f"{p['lat']},{p['lng']}" if isinstance(p, dict) else f"{p[0]},{p[1]}"
 
     base = "https://www.google.com/maps/dir/"
-
     if hub:
         hub_str = fmt(hub)
         path = "/".join([hub_str] + [fmt(s) for s in stops] + [hub_str])
     else:
-        coords = [fmt(s) for s in stops]
-        path = "/".join(coords)
-
+        path = "/".join(fmt(s) for s in stops)
     return base + path
 
 
@@ -329,7 +333,6 @@ def generate_maps_url(stops, hub=None):
 # ---------------------------------------------------------------------------
 
 def build_time_matrix_haversine(nodes):
-    """Full N×N haversine matrix in seconds."""
     n = len(nodes)
     matrix = []
     for i in range(n):
@@ -357,7 +360,6 @@ def _ors_chunk(coords, src_idx, tgt_idx, all_nodes):
     chunk_tgt = [remap[k] for k in tgt_idx]
 
     last_exc = None
-
     for attempt in range(1, ORS_MATRIX_MAX_RETRIES + 1):
         try:
             resp = requests.post(
@@ -383,7 +385,6 @@ def _ors_chunk(coords, src_idx, tgt_idx, all_nodes):
                             0 if i_global == j_global else max(1, int(round(cell)))
                         )
                     else:
-                        # ORS returned null — fall back to haversine for this pair
                         t = travel_time_minutes(
                             all_nodes[i_global]["lat"], all_nodes[i_global]["lng"],
                             all_nodes[j_global]["lat"], all_nodes[j_global]["lng"],
@@ -402,7 +403,6 @@ def _ors_chunk(coords, src_idx, tgt_idx, all_nodes):
                 )
                 time.sleep(delay)
                 continue
-
             try:
                 print(f"ORS chunk error response: {exc.response.json()}")
             except Exception:
@@ -427,9 +427,7 @@ def _ors_chunk(coords, src_idx, tgt_idx, all_nodes):
 
 
 def build_time_matrix_ors(nodes):
-    """
-    Parallel version: builds N×N matrix using ORS with chunking.
-    """
+    """Parallel N×N matrix via ORS with chunking and haversine fallback."""
     ors_api_key = os.getenv("ORS_API_KEY", "")
     if not ors_api_key:
         print("Warning: ORS_API_KEY not set — using haversine matrix.")
@@ -437,29 +435,20 @@ def build_time_matrix_ors(nodes):
 
     n = len(nodes)
     coords = [[nd["lng"], nd["lat"]] for nd in nodes]
-
     matrix = [[0] * n for _ in range(n)]
-
     tasks = []
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         for i_start in range(0, n, ORS_CHUNK_SIZE):
             i_end = min(i_start + ORS_CHUNK_SIZE, n)
-
             for j_start in range(0, n, ORS_CHUNK_SIZE):
                 j_end = min(j_start + ORS_CHUNK_SIZE, n)
-
                 src_idx = list(range(i_start, i_end))
                 tgt_idx = list(range(j_start, j_end))
-
-                future = executor.submit(
-                    _ors_chunk, coords, src_idx, tgt_idx, nodes
-                )
-                tasks.append(future)
+                tasks.append(executor.submit(_ors_chunk, coords, src_idx, tgt_idx, nodes))
 
         for future in as_completed(tasks):
-            chunk = future.result()
-            for (i, j), val in chunk.items():
+            for (i, j), val in future.result().items():
                 matrix[i][j] = val
 
     print(f"Info: Travel-time matrix built for {n} nodes.")
@@ -471,10 +460,7 @@ def build_time_matrix_ors(nodes):
 # ---------------------------------------------------------------------------
 
 def build_node_list(hub, properties):
-    """
-    Returns a flat list: [depot, prop_0, prop_1, …]
-    Node 0 is always the depot (hub).
-    """
+    """Returns [depot, prop_0, prop_1, …]. Node 0 is always the depot."""
     nodes = [{
         "type": "hub",
         "lat": hub["lat"],
@@ -505,37 +491,32 @@ def build_node_list(hub, properties):
 # Hydrant post-processing
 # ---------------------------------------------------------------------------
 
+def _fmt_time(now, minutes_offset):
+    dt = datetime.fromtimestamp(
+        now.timestamp() + minutes_offset * 60, tz=timezone.utc
+    )
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def insert_hydrant_stops(property_stops, vehicle, hydrants, hub, now):
     """
-    For truck vehicles (C/D): inserts hydrant refill stops wherever the
-    truck would run out of water before reaching the next property.
-    Truck starts with an empty tank.
-
+    For truck vehicles (C/D): inserts hydrant refill stops wherever the truck
+    would run out of water before reaching the next property. Truck starts empty.
     For non-truck vehicles: passes through unchanged.
-
-    Computes arrival_time for every stop based on haversine travel times
-    from hub → stop_0 → stop_1 → …
+    Computes arrival_time for every stop.
     """
     tank_capacity = TEAM_WATER_CAPACITY_GALLONS.get(vehicle.get("team_type"))
+    refill_duration = HYDRANT_REFILL_DURATION_MINUTES.get(vehicle.get("team_type"), 5)
 
-    if tank_capacity is None or not hydrants:
-        # Non-truck: just compute arrival times
-        return _assign_arrival_times(property_stops, hub, now)
-
-    refill_duration = HYDRANT_REFILL_DURATION_MINUTES.get(
-        vehicle.get("team_type"), 5
-    )
-
-    water_remaining = 0
     result = []
     cur_lat, cur_lng = hub["lat"], hub["lng"]
-    cur_time = 0.0  # minutes elapsed since route start
+    cur_time = 0.0
+    water_remaining = 0 if tank_capacity else None
 
     for prop in property_stops:
         demand = prop.get("water_demand_gallons", DEFAULT_PROPERTY_WATER_DEMAND_GALLONS)
 
-        # Refill before this property if needed
-        if demand > water_remaining:
+        if tank_capacity is not None and hydrants and demand > water_remaining:
             h = nearest_hydrant(cur_lat, cur_lng, hydrants)
             cur_time += travel_time_minutes(cur_lat, cur_lng, h["lat"], h["lng"])
             result.append({
@@ -551,70 +532,31 @@ def insert_hydrant_stops(property_stops, vehicle, hydrants, hub, now):
             water_remaining = tank_capacity
             cur_lat, cur_lng = h["lat"], h["lng"]
 
-        # Travel to property
         cur_time += travel_time_minutes(cur_lat, cur_lng, prop["lat"], prop["lng"])
-        result.append({
-            **prop,
-            "arrival_time": _fmt_time(now, cur_time),
-        })
+        result.append({**prop, "arrival_time": _fmt_time(now, cur_time)})
         cur_time += prop["service_time_min"]
-        water_remaining -= demand
+        if water_remaining is not None:
+            water_remaining -= demand
         cur_lat, cur_lng = prop["lat"], prop["lng"]
 
     return result
-
-
-def _assign_arrival_times(property_stops, hub, now):
-    """Compute arrival times for non-truck vehicles."""
-    result = []
-    cur_lat, cur_lng = hub["lat"], hub["lng"]
-    cur_time = 0.0
-
-    for stop in property_stops:
-        cur_time += travel_time_minutes(cur_lat, cur_lng, stop["lat"], stop["lng"])
-        result.append({**stop, "arrival_time": _fmt_time(now, cur_time)})
-        cur_time += stop["service_time_min"]
-        cur_lat, cur_lng = stop["lat"], stop["lng"]
-
-    return result
-
-
-def _fmt_time(now, minutes_offset):
-    dt = datetime.fromtimestamp(
-        now.timestamp() + minutes_offset * 60, tz=timezone.utc
-    )
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ---------------------------------------------------------------------------
 # Core OR-Tools optimiser
 # ---------------------------------------------------------------------------
 
-def optimize_vehicles(hub, properties, vehicles, hydrants, now):
+def optimize_vehicles(hub, properties, vehicles, hydrants, now, cache_matrix=None, cache_nodes=None):
     """
     Runs a single OR-Tools VRP for the given vehicles and properties.
 
-    Key design decisions (based on OR-Tools documentation):
-
-    1. A single transit callback (travel + service time) is used for BOTH
-       the arc cost evaluator AND the Time dimension. This means the solver
-       minimises the same quantity it uses to enforce the time budget —
-       they are on the same scale.
-
-    2. Per-vehicle time budgets are enforced via AddDimensionWithVehicleCapacity,
-       which accepts one capacity value per vehicle. This is more correct than
-       AddDimension (single global cap) for mixed-budget fleets.
-
-    3. Every property node is wrapped in an AddDisjunction so the solver can
-       drop it (make it optional) if it cannot fit within any vehicle's budget.
-       The penalty is set high enough that the solver will always prefer to
-       visit a node over dropping it (penalty >> any realistic single-arc cost).
-
-    4. VehicleVar eligibility (which vehicle types can visit which property
-       types) is enforced via VehicleVar(node).SetValues(allowed_vehicle_indices).
-       Guard against empty allowed list to prevent model infeasibility.
-
-    Returns {"routes": [...], "dropped": [...]}
+    Key design decisions:
+    1. Separate cost callback (travel only) and time callback (travel + service)
+       so the solver minimises travel while the Time dimension enforces budgets.
+    2. Per-vehicle budgets via AddDimensionWithVehicleCapacity.
+    3. Every property is an optional node (AddDisjunction) so the solver can
+       drop it if it won't fit within any vehicle's budget.
+    4. VehicleVar eligibility enforced per node to prevent type mismatches.
     """
     if not properties or not vehicles:
         return {
@@ -630,29 +572,29 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
     n_vehicles = len(vehicles)
     depot = 0
 
-    # ------------------------------------------------------------------
-    # Travel-time matrix (seconds). Used directly by the transit callback.
-    # Includes service time at the FROM node so the solver accounts for
-    # the full time cost of visiting a node before moving to the next.
-    # ------------------------------------------------------------------
-    travel_matrix = build_time_matrix_ors(nodes)
+    # Travel-time matrix
+    travel_matrix = None
+    if cache_matrix is not None and cache_nodes is not None:
+        coord_index = {(n["lat"], n["lng"]): idx for idx, n in enumerate(cache_nodes)}
+        try:
+            idxs = [coord_index[(n["lat"], n["lng"])] for n in nodes]
+            travel_matrix = [
+                [cache_matrix[idxs[i]][idxs[j]] for j in range(len(nodes))]
+                for i in range(len(nodes))
+            ]
+            print("Using cached travel-time submatrix for this pass.")
+        except KeyError:
+            print("Cached matrix could not map all nodes; rebuilding for this pass.")
 
-    # ------------------------------------------------------------------
+    if travel_matrix is None:
+        travel_matrix = build_time_matrix_ors(nodes)
+
     # Routing model
-    # ------------------------------------------------------------------
     manager = pywrapcp.RoutingIndexManager(n_nodes, n_vehicles, depot)
     routing = pywrapcp.RoutingModel(manager)
 
-    # ------------------------------------------------------------------
-    # Cost callback: travel time only (what the solver minimizes).
-    # Time callback: travel + service time (used by the Time dimension).
-    # Separating these keeps the objective focused on travel while the
-    # Time dimension enforces realistic budgets including service.
-    # ------------------------------------------------------------------
     def cost_callback(from_index, to_index):
-        from_node = manager.IndexToNode(from_index)
-        to_node = manager.IndexToNode(to_index)
-        return travel_matrix[from_node][to_node]
+        return travel_matrix[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]
 
     cost_idx = routing.RegisterTransitCallback(cost_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(cost_idx)
@@ -665,77 +607,34 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
 
     time_idx = routing.RegisterTransitCallback(time_callback)
 
-    # ------------------------------------------------------------------
-    # Time dimension with per-vehicle budgets.
-    #
-    # AddDimensionWithVehicleCapacity takes a list of per-vehicle maximums,
-    # which is the correct approach for mixed-budget fleets (vs AddDimension
-    # which uses a single global cap shared by all vehicles).
-    # ------------------------------------------------------------------
-    vehicle_budgets_sec = [
-        v["team_time_budget_minutes"] * 60 for v in vehicles
-    ]
-
+    vehicle_budgets_sec = [v["team_time_budget_minutes"] * 60 for v in vehicles]
     routing.AddDimensionWithVehicleCapacity(
         time_idx,
-        0,                    # no waiting time (slack)
-        vehicle_budgets_sec,  # per-vehicle time budget in seconds
-        True,                 # cumul starts at zero for every vehicle
+        0,
+        vehicle_budgets_sec,
+        True,
         "Time",
     )
 
-    # ------------------------------------------------------------------
-    # Optional nodes: every property node can be dropped.
-    #
-    # Penalty is set to max_budget_seconds so the solver always prefers
-    # visiting a node over dropping it (a dropped node costs as much as
-    # an entire route). With no priority weighting at this stage, all
-    # properties are treated equally.
-    # ------------------------------------------------------------------
     max_budget_sec = max(vehicle_budgets_sec)
+    for node_idx in range(1, n_nodes):
+        routing.AddDisjunction([manager.NodeToIndex(node_idx)], max_budget_sec)
 
-    for node_idx in range(1, n_nodes):  # skip depot (node 0)
-        routing.AddDisjunction(
-            [manager.NodeToIndex(node_idx)],
-            max_budget_sec,
-        )
-
-    # ------------------------------------------------------------------
-    # Vehicle eligibility: restrict which vehicle indices can visit each
-    # property node. Guard against empty allowed list (which would make
-    # the model immediately infeasible).
-    # ------------------------------------------------------------------
-    # For a tiered call, all vehicles in `vehicles` are of the same tier
-    # and can visit all properties passed in. However we still apply the
-    # guard defensively in case this function is called with mixed types.
     ELIGIBLE_TYPES = {
         "A": {"A"},
         "B": {"A", "B"},
         "C": {"A", "B", "C"},
         "D": {"A", "B", "C"},
     }
-
     for node_idx in range(1, n_nodes):
         prop_type = nodes[node_idx]["property_type"]
         allowed = [
             v_idx for v_idx, v in enumerate(vehicles)
             if prop_type in ELIGIBLE_TYPES.get(v["team_type"], set())
         ]
-        # Only restrict if at least one vehicle is eligible but not all —
-        # if no vehicle is eligible, the disjunction penalty handles dropping.
         if 0 < len(allowed) < n_vehicles:
-            routing.VehicleVar(
-                manager.NodeToIndex(node_idx)
-            ).SetValues(allowed)
+            routing.VehicleVar(manager.NodeToIndex(node_idx)).SetValues(allowed)
 
-    # ------------------------------------------------------------------
-    # Search parameters
-    #
-    # PARALLEL_CHEAPEST_INSERTION builds all routes simultaneously as the
-    # initial solution, distributing nodes across vehicles from the start.
-    # This is better than PATH_CHEAPEST_ARC for multi-vehicle problems with
-    # optional nodes, which tends to over-load the first vehicle.
-    # ------------------------------------------------------------------
     search_params = pywrapcp.DefaultRoutingSearchParameters()
     search_params.first_solution_strategy = (
         routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION
@@ -745,11 +644,7 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
     )
     search_params.time_limit.seconds = SOLVER_TIME_LIMIT_SECONDS
 
-    # ------------------------------------------------------------------
-    # Solve
-    # ------------------------------------------------------------------
     solution = routing.SolveWithParameters(search_params)
-
     if not solution:
         return {
             "routes": [],
@@ -759,19 +654,14 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
             ],
         }
 
-    # ------------------------------------------------------------------
-    # Extract routes
-    # ------------------------------------------------------------------
     routes = []
     visited_ids = set()
 
     for v_idx, vehicle in enumerate(vehicles):
         raw_stops = []
         index = routing.Start(v_idx)
-
         while not routing.IsEnd(index):
-            node_idx = manager.IndexToNode(index)
-            node = nodes[node_idx]
+            node = nodes[manager.IndexToNode(index)]
             if node["type"] == "property":
                 raw_stops.append({
                     "type": "property",
@@ -781,12 +671,11 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
                     "lng": node["lng"],
                     "service_time_min": node["service_time_minutes"],
                     "water_demand_gallons": node["water_demand_gallons"],
-                    "arrival_time": None,  # filled in below
+                    "arrival_time": None,
                 })
                 visited_ids.add(node["id"])
             index = solution.Value(routing.NextVar(index))
 
-        # Always emit a record for every vehicle, even if it has no stops
         if not raw_stops:
             routes.append({
                 "vehicle_id": vehicle["id"],
@@ -803,24 +692,19 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
             })
             continue
 
-        # Insert hydrant stops and compute all arrival times
         stops = insert_hydrant_stops(raw_stops, vehicle, hydrants, hub, now)
 
         property_stops = [s for s in stops if s["type"] == "property"]
         hydrant_stops  = [s for s in stops if s["type"] == "hydrant_refill"]
-
         service_min = sum(s["service_time_min"] for s in property_stops)
         refill_min  = sum(s["duration_min"]     for s in hydrant_stops)
 
-        # Compute actual travel time by walking the stop sequence
         travel_min = 0.0
         prev_lat, prev_lng = hub["lat"], hub["lng"]
         for s in stops:
             travel_min += travel_time_minutes(prev_lat, prev_lng, s["lat"], s["lng"])
             prev_lat, prev_lng = s["lat"], s["lng"]
         travel_min = int(round(travel_min))
-
-        maps_stops = [{"lat": s["lat"], "lng": s["lng"]} for s in stops]
 
         routes.append({
             "vehicle_id": vehicle["id"],
@@ -833,7 +717,9 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
                 "refill_min": int(round(refill_min)),
                 "total_min": travel_min + int(round(service_min)) + int(round(refill_min)),
             },
-            "maps_url": generate_maps_url(maps_stops, hub),
+            "maps_url": generate_maps_url(
+                [{"lat": s["lat"], "lng": s["lng"]} for s in stops], hub
+            ),
         })
 
     dropped = [
@@ -841,7 +727,6 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
         for p in properties
         if p["id"] not in visited_ids
     ]
-
     return {"routes": routes, "dropped": dropped}
 
 
@@ -849,15 +734,11 @@ def optimize_vehicles(hub, properties, vehicles, hydrants, now):
 # Tiered optimisation (A → B → C/D)
 # ---------------------------------------------------------------------------
 
-def run_tiered_optimization(hub, all_properties, all_vehicles, hydrants, now):
+def run_tiered_optimization(hub, all_properties, all_vehicles, hydrants, now, cache_matrix=None, cache_nodes=None):
     """
     Three-pass tiered approach so that each team type only visits the
     property type it is trained for, while unserved properties cascade
     to the next capable tier.
-
-    Pass 1: Team A vehicles  + Type A properties
-    Pass 2: Team B vehicles  + Type B properties + Pass 1 drops
-    Pass 3: Team C/D vehicles + Type C properties + Pass 2 drops
     """
     prop_by_id = {p["id"]: p for p in all_properties}
 
@@ -870,51 +751,40 @@ def run_tiered_optimization(hub, all_properties, all_vehicles, hydrants, now):
     team_cd = [v for v in all_vehicles if v["team_type"] in ("C", "D")]
 
     all_routes  = []
-    all_dropped = []
+    kwargs = dict(cache_matrix=cache_matrix, cache_nodes=cache_nodes)
 
-    # ------------------------------------------------------------------
-    # Pass 1: Team A + Type A properties
-    # ------------------------------------------------------------------
+    # Pass 1: Team A + Type A
     if team_a and type_a:
-        print(
-            f"\nPass 1: {len(team_a)} Team A vehicle(s), "
-            f"{len(type_a)} Type A properties"
-        )
-        r1 = optimize_vehicles(hub, type_a, team_a, [], now)
+        print(f"\nPass 1: {len(team_a)} Team A vehicle(s), {len(type_a)} Type A properties")
+        r1 = optimize_vehicles(hub, type_a, team_a, [], now, **kwargs)
         all_routes.extend(r1["routes"])
         pass1_drops = [prop_by_id[d["property_id"]] for d in r1["dropped"]]
     else:
         print("\nPass 1 skipped — no Team A vehicles or Type A properties.")
         pass1_drops = list(type_a)
 
-    # ------------------------------------------------------------------
-    # Pass 2: Team B + Type B properties + Pass 1 drops
-    # ------------------------------------------------------------------
+    # Pass 2: Team B + Type B + Pass 1 drops
     pass2_props = type_b + pass1_drops
     if team_b and pass2_props:
         print(
-            f"\nPass 2: {len(team_b)} Team B vehicle(s), "
-            f"{len(pass2_props)} properties "
+            f"\nPass 2: {len(team_b)} Team B vehicle(s), {len(pass2_props)} properties "
             f"({len(type_b)} Type B + {len(pass1_drops)} from Pass 1)"
         )
-        r2 = optimize_vehicles(hub, pass2_props, team_b, [], now)
+        r2 = optimize_vehicles(hub, pass2_props, team_b, [], now, **kwargs)
         all_routes.extend(r2["routes"])
         pass2_drops = [prop_by_id[d["property_id"]] for d in r2["dropped"]]
     else:
         print("\nPass 2 skipped — no Team B vehicles or properties.")
         pass2_drops = list(pass2_props)
 
-    # ------------------------------------------------------------------
-    # Pass 3: Team C/D + Type C properties + Pass 2 drops
-    # ------------------------------------------------------------------
+    # Pass 3: Team C/D + Type C + Pass 2 drops
     pass3_props = type_c + pass2_drops
     if team_cd and pass3_props:
         print(
-            f"\nPass 3: {len(team_cd)} Team C/D vehicle(s), "
-            f"{len(pass3_props)} properties "
+            f"\nPass 3: {len(team_cd)} Team C/D vehicle(s), {len(pass3_props)} properties "
             f"({len(type_c)} Type C + {len(pass2_drops)} from Pass 2)"
         )
-        r3 = optimize_vehicles(hub, pass3_props, team_cd, hydrants, now)
+        r3 = optimize_vehicles(hub, pass3_props, team_cd, hydrants, now, **kwargs)
         all_routes.extend(r3["routes"])
         all_dropped = r3["dropped"]
     else:
@@ -943,9 +813,35 @@ if __name__ == "__main__":
     print(f"\n{'='*60}")
     print(f"Route Optimisation — {now.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     print(f"Vehicles: {len(vehicles)} | Properties: {len(properties)} | Hydrants: {len(hydrants)}")
+    if not args.no_cache:
+        print(f"Cache: {args.cache_file}")
     print(f"{'='*60}")
 
-    result = run_tiered_optimization(hub, properties, vehicles, hydrants, now)
+    cache_matrix = None
+    cache_nodes = None
+
+    if not args.no_cache:
+        full_nodes = build_node_list(hub, properties)
+        print("\nChecking travel-time cache...")
+        cached_matrix, _ = get_cached_matrix_if_valid(args.cache_file, full_nodes, verbose=True)
+
+        if cached_matrix is None or not is_cache_recent(args.cache_file, max_age_hours=24):
+            if cached_matrix is not None:
+                print("Cache is older than 24 hours — rebuilding.")
+            else:
+                print("No valid cache found — building fresh matrix.")
+            full_matrix = build_time_matrix_ors(full_nodes)
+            save_cached_matrix(args.cache_file, full_matrix, full_nodes, hub)
+            cache_matrix = full_matrix
+        else:
+            cache_matrix = cached_matrix
+
+        cache_nodes = full_nodes
+
+    result = run_tiered_optimization(
+        hub, properties, vehicles, hydrants, now,
+        cache_matrix=cache_matrix, cache_nodes=cache_nodes,
+    )
 
     print(f"\n{'='*60}")
     print("RESULT")
@@ -954,7 +850,8 @@ if __name__ == "__main__":
 
     output_file = write_results(result, args.output, now)
     print(f"\nWrote results to: {output_file}")
+    n_dropped = len(result["dropped"])
     print(
         f"\nSummary: {len(result['routes'])} route(s), "
-        f"{len(result['dropped'])} dropped propert{'y' if len(result['dropped']) == 1 else 'ies'}"
+        f"{n_dropped} dropped propert{'y' if n_dropped == 1 else 'ies'}"
     )
