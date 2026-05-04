@@ -59,6 +59,14 @@ TEAM_WATER_CAPACITY_GALLONS = {
     "D": 2000,
 }
 
+VOLUNTEER_TYPE_BY_TEAM_TYPE = {
+    "A": "Type A",
+    "B": "Type B",
+    "C": "Type C",
+    "D": "Type D",
+    "E": "Type E",
+}
+
 DEFAULT_PROPERTY_SERVICE_TIME_MINUTES = 10
 DEFAULT_PROPERTY_WATER_DEMAND_GALLONS = 500
 
@@ -107,14 +115,13 @@ def _load_env_file():
 def _get_supabase_client():
     url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
     key = (
-        os.getenv("SUPABASE_ANON_KEY")
-        or os.getenv("SUPABASE_KEY")
-        or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     )
     if not url or not key:
         raise RuntimeError(
             "Missing Supabase credentials. Set SUPABASE_URL and "
-            "SUPABASE_ANON_KEY (or their NEXT_PUBLIC_ variants)."
+            "SUPABASE_SERVICE_KEY (or their NEXT_PUBLIC_ variants)."
         )
     try:
         from supabase import create_client
@@ -261,6 +268,20 @@ def parse_args():
     )
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument(
+        "--create-session",
+        action="store_true",
+        help="Create a Watering Session and Routes in Supabase",
+    )
+    parser.add_argument("--session-name", type=str, default=None, help="Session name for DB")
+    parser.add_argument("--session-date", type=str, default=None, help="Session date (YYYY-MM-DD)")
+    parser.add_argument("--central-hub-name", type=str, default=None, help="Central hub name")
+    parser.add_argument(
+        "--team-size",
+        action="append",
+        type=int,
+        help="Number of volunteers for each team type (repeat for each team)",
+    )
+    parser.add_argument(
         "--no-cache",
         action="store_true",
         help="Disable travel time matrix cache (cache is used by default)",
@@ -277,6 +298,85 @@ def parse_args():
     if len(args.team) != args.num_teams:
         parser.error("--num-teams must equal the number of --team entries.")
     return args
+
+
+# ---------------------------------------------------------------------------
+# Supabase write helpers
+# ---------------------------------------------------------------------------
+
+
+def fetch_central_hub_by_name(client, hub_name):
+    """Fetch Central Hub by name; returns (id, name, lat, lng, address)."""
+    resp = (
+        client.table("Central Hubs")
+        .select("id,central_hub_name,central_hub_lat,central_hub_long,central_hub_address")
+        .ilike("central_hub_name", hub_name)
+        .execute()
+    )
+    data = resp.data or []
+    if not data:
+        raise ValueError(f"Central Hub '{hub_name}' not found in Supabase.")
+    row = data[0]
+    return {
+        "id": str(row["id"]),
+        "name": row.get("central_hub_name"),
+        "lat": row.get("central_hub_lat"),
+        "lng": row.get("central_hub_long"),
+        "address": row.get("central_hub_address"),
+    }
+
+
+def create_watering_session(client, name, date_str, central_hub_id, central_hub_name, central_hub_lat, central_hub_long, central_hub_address):
+    """Create a watering session with a reference to a Central Hub."""
+    payload = {
+        "date": date_str,
+        "watering_event_name": name,
+        "central_hub": central_hub_name,
+        "central_hub_lat": central_hub_lat,
+        "central_hub_long": central_hub_long,
+        "central_hub_address": central_hub_address,
+        "central_hub_id": central_hub_id,
+        
+    }
+    resp = client.table("Watering Sessions").insert(payload).execute()
+    data = resp.data or []
+    if not data:
+        raise RuntimeError(f"Failed to create watering session: {resp}")
+    return str(data[0]["id"])
+
+
+def insert_routes_to_supabase(client, session_id, session_name, result, team_size_by_type):
+    routes = result.get("routes", [])
+    inserted = []
+    for idx, r in enumerate(routes, start=1):
+        route_row = {
+            "watering_event_id": session_id,
+            "date": datetime.now(tz=timezone.utc).date().isoformat(),
+            "watering_event_name": session_name,
+            "route_label": f"Route {idx} - {r.get('vehicle_id')}",
+            "volunteer_type": VOLUNTEER_TYPE_BY_TEAM_TYPE.get(r.get("team_type")),
+            "maps_link": r.get("maps_url"),
+            "num_volunteers": team_size_by_type.get(r.get("team_type")) or 0,
+        }
+        resp = client.table("Routes").insert(route_row).execute()
+        data = resp.data or []
+        if not data:
+            print(f"Warning: failed to insert route {route_row}")
+            continue
+        route_id = str(data[0]["id"])
+        # Insert stops
+        stops = r.get("stops", [])
+        for order, s in enumerate(stops, start=1):
+            stop_row = {
+                "route_id": route_id,
+                "order_to_visit": order,
+                "property_id": s.get("property_id"),
+                "property_address": s.get("address"),
+                "hydrant_id": s.get("hydrant_id"),
+            }
+            client.table("Route Stops").insert(stop_row).execute()
+        inserted.append(route_id)
+    return inserted
 
 
 def write_results(result, output_path, now):
@@ -855,3 +955,40 @@ if __name__ == "__main__":
         f"\nSummary: {len(result['routes'])} route(s), "
         f"{n_dropped} dropped propert{'y' if n_dropped == 1 else 'ies'}"
     )
+
+    # Optionally create Watering Session and Routes in Supabase
+    if args.create_session:
+        if not args.session_name or not args.session_date or not args.central_hub_name:
+            raise SystemExit(
+                "--create-session requires --session-name, --session-date, and --central-hub-name"
+            )
+        # Build team size mapping (team_type -> size) if provided
+        team_size_by_type = {}
+        if getattr(args, "team_size", None):
+            for (team_type, _), size in zip(args.team, args.team_size):
+                team_size_by_type[team_type] = size
+
+        try:
+            client = _get_supabase_client()
+            print(f"Looking up Central Hub '{args.central_hub_name}'...")
+            central_hub = fetch_central_hub_by_name(client, args.central_hub_name)
+            print(f"Found Central Hub: {central_hub['name']} (ID: {central_hub['id']})")
+
+            print("Creating watering session in Supabase...")
+            session_id = create_watering_session(
+                client,
+                args.session_name,
+                args.session_date,
+                central_hub["id"],
+                central_hub["name"],
+                central_hub["lat"],
+                central_hub["lng"],
+                central_hub["address"],
+            )
+            print(f"Created watering session {session_id}")
+
+            print("Inserting routes and stops into Supabase...")
+            inserted = insert_routes_to_supabase(client, session_id, args.session_name, result, team_size_by_type)
+            print(f"Inserted {len(inserted)} routes into Supabase")
+        except Exception as exc:
+            print(f"Error writing to Supabase: {exc}")
